@@ -1,601 +1,189 @@
-# Library Management System
+# Enterprise Inventory & Order Management System
 
-The Library Management System is a comprehensive application that allows users to manage a library's book inventory, handle user checkouts, and generate reports. This README provides all necessary information to install, set up, and use the application.
+A production-grade **Spring Boot** enterprise application demonstrating core **Java/JEE** concepts including Dependency Injection, Transaction Management, AOP, Spring Batch, and REST APIs.
 
-## Rules and Permissions
+---
 
-### Admin Role
-- Only users with the **Admin** role can manage (Create, Read, Update, Delete) books in the library. This includes:
-    - Adding new books to the inventory.
-    - Updating book details.
-    - Deleting books from the inventory.
-- Admins can also perform all other functions available to regular users, such as checking out books and generating reports.
+## Tech Stack
 
-### Regular Users
-- Regular users can perform the following actions:
-    - View the list of books available in the library.
-    - Checkout books from the library.
-    - Return books they have checked out.
-    - Generate reports on book inventory and checkouts.
+| Layer | Technology |
+|---|---|
+| Framework | Spring Boot 3.2.5 |
+| Language | Java 17 |
+| ORM / Data Access | Hibernate / JPA (Spring Data JPA) |
+| Batch Processing | Spring Batch |
+| AOP | Spring AOP (AspectJ) |
+| Database | H2 (dev) / MySQL (prod) |
+| Testing | JUnit 5 + Mockito |
+| Build Tool | Maven |
+| Boilerplate Reduction | Lombok |
 
-### Book Inventory Rules
-- When updating the number of copies of a book, the new number of copies cannot be less than the number of copies currently checked out and awaiting return. This ensures that the inventory accurately reflects the books available and prevents over-checkout.
+---
 
-### Checkout Rules
-- Users can check out a book more than once.
-- Users can only check out books if the total number of checked out books does not exceed the available copies in the inventory.
-- The checkout process and the return process are atomic to ensure that a book is not checked out if it is not available.
+## Key Concepts Demonstrated
 
-## Table of Contents
+### 1. Dependency Injection & IoC
+Spring's IoC container manages all beans. Constructor injection is used throughout (preferred over field injection).
+```java
+@Service
+@RequiredArgsConstructor  // Lombok generates constructor — Spring injects dependencies
+public class ProductServiceImpl implements ProductService {
+    private final ProductRepository productRepository; // injected by Spring
+}
+```
 
-- [Features](#features)
-- [Technologies Used](#technologies-used)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Application](#running-the-application)
-- [Endpoints](#endpoints)
-- [Testing](#testing)
+### 2. Transaction Management
+`@Transactional` ensures atomic operations — if any step fails, everything rolls back.
+```java
+@Transactional(rollbackFor = Exception.class)
+public OrderDTO placeOrder(OrderDTO orderDTO) {
+    // Step 1: decrease stock
+    // Step 2: create order record
+    // If Step 2 fails → Step 1 is ROLLED BACK automatically
+}
+```
 
-## Features
+### 3. Aspect-Oriented Programming (AOP)
+A single `LoggingAspect` class handles logging, execution timing, and exception tracking for **all service methods** — without touching service code.
+```java
+@Around("serviceLayer()")
+public Object measureExecutionTime(ProceedingJoinPoint pjp) throws Throwable {
+    long start = System.currentTimeMillis();
+    Object result = pjp.proceed();
+    log.info("Executed in {} ms", System.currentTimeMillis() - start);
+    return result;
+}
+```
 
-- User Authentication (Login and Logout)
-- Book Management (CRUD Operations)
-- User Checkouts and Returns
-- Reporting (Books, Pending Returns, Returned Books)
+### 4. Spring Batch — Chunk-Oriented Processing
+Processes inventory records in configurable chunks, each with its own transaction.
+```
+ItemReader → reads low-stock products from DB
+ItemProcessor → validates and flags critical items
+ItemWriter → writes batch report
+Chunk size: 10 items per transaction
+```
 
-## Technologies Used
+### 5. Test-Driven Development (TDD)
+8 unit tests with JUnit 5 + Mockito covering success, failure, and edge cases.
 
-- **Java 22**
-- **Spring Boot 3.2.5**
-- **Spring Security**
-- **Spring Data JPA**
-- **Hibernate**
-- **H2 Database (for testing)**
-- **PostgreSQL (for production)**
-- **ModelMapper 2.4.4**
-- **JUnit 5**
-- **Mockito**
-- **Jackson**
-- **JSON Web Tokens (JWT)**
-- **JavaMailSender**
-- **Lombok**
-- **JavaFaker**
-- **Maven 3.9.6 or later**
+---
 
-
-## Installation
-
-1.  **Clone the repository:**
-
-    ```
-    git https://github.com/ibukunoreofe/library-management-java-spring-boot.git
-    cd library-management-java-spring-boot
-    ```
-
-2.  **Build the project:**
-
-    ```
-    mvn clean install
-    ```
-
-3.  **Set up the database:**
-
-    Ensure you have a running PostgreSQL database. Create a database named `library_management`.
-
-    Update the `application.properties` file with your database configuration:
-
-    ```
-    spring.datasource.url=jdbc:postgresql://localhost:5432/library_management
-    spring.datasource.username=your_db_username
-    spring.datasource.password=your_db_password
-    
-    # JPA and Hibernate configuration
-    spring.jpa.hibernate.ddl-auto=update
-    spring.jpa.show-sql=true
-    
-    # Admin user configuration
-    admin.email=admin@example.com
-    admin.password=password
-    
-    # Mail server configuration
-    spring.mail.host=smtp.mailtrap.io
-    spring.mail.port=587
-    spring.mail.username=your_mailtrap_username
-    spring.mail.password=your_mailtrap_password
-    spring.mail.properties.mail.smtp.auth=true
-    spring.mail.properties.mail.smtp.starttls.enable=true
-    ```
-
-4.  **Run the application:**
-
-    ```
-    mvn spring-boot:run
-    ```
-
-5.  **Access the application:**
-
-    The application will be available at `http://localhost:8080`.
-
-6. Optionally set JVM
-
-   SET JVM HOME to the path installed
-   ```shell
-   $ export JAVA_HOME="~\.jdks\openjdk-22.0.1"
-   ```
-
-7. Generate JWT Token
-   https://dev.to/tkirwa/generate-a-random-jwt-secret-key-39j4
-   
-   ```shell
-   $ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-   ```
-
-## Testing
-
-To run the tests for this application, use the following Maven command:
+## Project Structure
 
 ```
+src/
+├── main/java/com/akanksha/inventory/
+│   ├── InventoryApplication.java       # Entry point
+│   ├── aspect/
+│   │   └── LoggingAspect.java          # AOP — centralised logging & timing
+│   ├── batch/
+│   │   └── InventoryBatchConfig.java   # Spring Batch job configuration
+│   ├── controller/
+│   │   ├── ProductController.java      # REST API endpoints for products
+│   │   └── OrderController.java        # REST API endpoints for orders + batch trigger
+│   ├── dto/
+│   │   ├── ProductDTO.java
+│   │   └── OrderDTO.java
+│   ├── entity/
+│   │   ├── Product.java                # JPA Entity with lifecycle hooks
+│   │   └── Order.java                  # JPA Entity with ManyToOne relationship
+│   ├── exception/
+│   │   ├── GlobalExceptionHandler.java # Centralised error handling
+│   │   └── ResourceNotFoundException.java
+│   ├── repository/
+│   │   ├── ProductRepository.java      # JPA Repository with custom JPQL queries
+│   │   └── OrderRepository.java
+│   └── service/
+│       ├── ProductService.java         # Interface (IoC principle)
+│       ├── ProductServiceImpl.java     # Implementation with @Transactional
+│       └── OrderService.java           # Atomic order placement
+└── test/java/com/akanksha/inventory/
+    └── service/
+        └── ProductServiceTest.java     # 8 JUnit 5 + Mockito unit tests
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Java 17+
+- Maven 3.8+
+
+### Run (No Database Setup Needed)
+```bash
+# Clone the repository
+git clone https://github.com/AkankshaKesarkar/inventory-management-system.git
+cd inventory-management-system
+
+# Build and run (uses H2 in-memory DB automatically)
+mvn spring-boot:run
+```
+
+### Run Tests
+```bash
 mvn test
 ```
 
-The following are the main test classes and their purposes:
+### Access
+| URL | Description |
+|---|---|
+| `http://localhost:8080/api/products` | Product REST API |
+| `http://localhost:8080/api/orders` | Order REST API |
+| `http://localhost:8080/h2-console` | H2 DB Console (dev only) |
 
-*   **CreateAndEnsureAdminLoginTest:**
+---
 
-    Ensures that an admin user is created and can log in successfully. Stores the admin token for use in other tests.
+## REST API Reference
 
-*   **BookControllerTest:**
+### Products
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/products` | Create a product |
+| GET | `/api/products` | Get all products |
+| GET | `/api/products/{id}` | Get product by ID |
+| GET | `/api/products/category/{cat}` | Filter by category |
+| GET | `/api/products/low-stock?threshold=10` | Get low-stock products |
+| PUT | `/api/products/{id}` | Update product |
+| DELETE | `/api/products/{id}` | Delete product |
+| GET | `/api/products/inventory-value` | Total inventory value |
 
-    Tests all CRUD operations for the `/api/books` endpoints, including pagination and search functionality.
+### Orders
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/orders` | Place an order (atomic) |
+| GET | `/api/orders` | Get all orders |
+| GET | `/api/orders/{id}` | Get order by ID |
+| PUT | `/api/orders/{id}/cancel` | Cancel an order |
+| POST | `/api/orders/batch/run-inventory-report` | Trigger batch job |
 
-*   **CheckoutControllerTest:**
-
-    Tests the checkout and return functionality for the `/api/checkouts` endpoints.
-
-*   **ReportControllerTest:**
-
-    Tests the report generation endpoints for checked-out and returned books in the `/api/reports/books` endpoints.
-
-*   **PasswordResetControllerTest:**
-
-    Tests the password reset functionality for the `/api/auth/password/reset-request` and `/api/auth/password/reset` endpoints.
-
-*   **LogoutControllerTest:**
-
-    Tests the logout functionality for the `/api/auth/logout` endpoint.
-
-
-To run a specific test class, use the following Maven command:
-
+### Sample Request — Create Product
+```json
+POST /api/products
+{
+  "name": "Laptop",
+  "category": "Electronics",
+  "price": 75000.00,
+  "stockQuantity": 50
+}
 ```
-mvn -Dtest=ClassNameTest test
+
+### Sample Request — Place Order
+```json
+POST /api/orders
+{
+  "customerName": "Akanksha Kesarkar",
+  "productId": 1,
+  "quantity": 2
+}
 ```
 
-For example, to run the `BookControllerTest`:
-
-```
-mvn -Dtest=BookControllerTest test
-```
-
-Ensure that the required environment variables or system properties are set for the tests to run successfully. The tests may require access to a running database or other services, depending on the application configuration.
-
-
-## Usage
-
-The application provides a set of RESTful endpoints for managing the library system. Below is a list of the available endpoints:
-
-### Authentication
-
-### Authentication and Authorization
-
-*   **Login:**
-
-    ```
-    POST /api/auth/login
-    ```
-
-    Parameters:
-
-    ```
-    {
-      "email": "admin@example.com",
-      "password": "password"
-    }
-    ```
-
-    Response:
-
-    ```
-    {
-      "token": "your_jwt_token"
-    }
-    ```
-
-*   **Register:**
-
-    ```
-    POST /api/auth/register
-    ```
-
-    Parameters:
-
-    ```
-    {
-      "name": "User Name",
-      "email": "user@example.com",
-      "password": "password"
-    }
-    ```
-
-    Response:
-
-    ```
-    {
-      "message": "User registered successfully"
-    }
-    ```
-
-*   **Request Password Reset:**
-
-    ```
-    POST /api/auth/password/reset-request
-    ```
-
-    Parameters:
-
-    ```
-    {
-      "email": "user@example.com"
-    }
-    ```
-
-    Response:
-
-    ```
-    {
-      "message": "Password reset code sent to your email."
-    }
-    ```
-
-*   **Reset Password:**
-
-    ```
-    POST /api/auth/password/reset
-    ```
-
-    Parameters:
-
-    ```
-    {
-      "email": "user@example.com",
-      "password": "newpassword",
-      "password_confirmation": "newpassword",
-      "token": "reset_token"
-    }
-    ```
-
-    Response:
-
-    ```
-    {
-      "message": "Your password has been reset."
-    }
-    ```
-
-*   **Logout:**
-
-    ```
-    POST /api/auth/logout
-    ```
-
-    Parameters:
-
-    Response:
-
-    ```
-    {
-      "message": "User 'username' has been logged out successfully."
-    }
-    ```
-
-### Books
-
-*   **Get All Books:**
-
-    ```
-    GET /api/books
-    ```
-
-    Parameters:
-
-   *   `paginate` (boolean, optional): If true, returns paginated results.
-   *   `page` (integer, optional): Page number for pagination.
-   *   `size` (integer, optional): Page size for pagination.
-   *   `search` (string, optional): Search query for book titles or authors.
-
-    Response:
-
-    ```
-    [
-      {
-        "id": 1,
-        "title": "Book Title",
-        "author": "Author Name",
-        "isbn": "1234567890",
-        "publishedAt": "2023-01-01",
-        "copies": 10
-      },
-      ...
-    ]
-    ```
-
-*   **Get Book by ID:**
-
-    ```
-    GET /api/books/{id}
-    ```
-
-    Response:
-
-    ```
-    {
-      "id": 1,
-      "title": "Book Title",
-      "author": "Author Name",
-      "isbn": "1234567890",
-      "publishedAt": "2023-01-01",
-      "copies": 10
-    }
-    ```
-
-*   **Create Book:**
-
-    ```
-    POST /api/books
-    ```
-
-    Request Body:
-
-    ```
-    {
-      "title": "New Book",
-      "author": "Author Name",
-      "isbn": "1234567890",
-      "publishedAt": "2023-01-01",
-      "copies": 10
-    }
-    ```
-
-    Response:
-
-    ```
-    {
-      "id": 1,
-      "title": "New Book",
-      "author": "Author Name",
-      "isbn": "1234567890",
-      "publishedAt": "2023-01-01",
-      "copies": 10
-    }
-    ```
-
-*   **Update Book:**
-
-    ```
-    PUT /api/books/{id}
-    ```
-
-    Request Body:
-
-    ```
-    {
-      "title": "Updated Book",
-      "author": "Author Name",
-      "isbn": "1234567890",
-      "publishedAt": "2023-01-01",
-      "copies": 10
-    }
-    ```
-
-    Response:
-
-    ```
-    {
-      "id": 1,
-      "title": "Updated Book",
-      "author": "Author Name",
-      "isbn": "1234567890",
-      "publishedAt": "2023-01-01",
-      "copies": 10
-    }
-    ```
-
-*   **Delete Book:**
-
-    ```
-    DELETE /api/books/{id}
-    ```
-
-    Response:
-
-    ```
-    {
-      "message": "Book deleted successfully."
-    }
-    ```
-
-
-### Checkouts
-
-*   **Checkout Book:**
-
-    ```
-    POST /api/checkouts
-    ```
-
-    Request Body:
-
-    ```
-    {
-      "bookId": 1
-    }
-    ```
-
-    Response:
-
-    ```
-    {
-      "checkoutId": 1,
-      "userId": 1,
-      "bookId": 1,
-      "checkoutPersonName": "Admin User",
-      "checkoutPersonEmailAddress": "admin@example.com",
-      "bookTitle": "Book Title",
-      "bookAuthor": "Author Name",
-      "bookIsbn": "1234567890",
-      "checkoutDateTimeUtc": "2023-01-01T00:00:00Z",
-      "returnDateTimeUtc": null,
-      "createdAt": "2023-01-01T00:00:00Z",
-      "updatedAt": "2023-01-01T00:00:00Z"
-    }
-    ```
-
-*   **Return Book:**
-
-    ```
-    PATCH /api/checkouts/{checkoutId}
-    ```
-
-    Response:
-
-    ```
-    {
-      "checkoutId": 1,
-      "userId": 1,
-      "bookId": 1,
-      "checkoutPersonName": "Admin User",
-      "checkoutPersonEmailAddress": "admin@example.com",
-      "bookTitle": "Book Title",
-      "bookAuthor": "Author Name",
-      "bookIsbn": "1234567890",
-      "checkoutDateTimeUtc": "2023-01-01T00:00:00Z",
-      "returnDateTimeUtc": "2023-01-02T00:00:00Z",
-      "createdAt": "2023-01-01T00:00:00Z",
-      "updatedAt": "2023-01-02T00:00:00Z"
-    }
-    ```
-
-### Reports
-
-*   **Get All Books Report:**
-
-    ```
-    GET /api/reports/books
-    ```
-
-    Parameters:
-
-    *   `paginate` (boolean, optional) - If true, returns paginated results.
-    *   `page` (integer, optional) - Page number for pagination.
-    *   `size` (integer, optional) - Number of items per page for pagination.
-    *   `search` (string, optional) - Search query for filtering results.
-
-    Response:
-
-    ```
-    {
-      "books": [
-        {
-          "id": 1,
-          "title": "Book Title",
-          "author": "Author Name",
-          "isbn": "1234567890",
-          "publishedAt": "2023-01-01",
-          "copies": 10,
-          "checkedOutCount": 2,
-          "quantityLeft": 8,
-          "timesCheckedOutAndReturned": 1
-        }
-      ],
-      "totalPages": 1,
-      "totalItems": 1
-    }
-    ```
-
-*   **Get Books Pending Return:**
-
-    ```
-    GET /api/reports/books/pending-return
-    ```
-
-    Parameters:
-
-    *   `paginate` (boolean, optional) - If true, returns paginated results.
-    *   `page` (integer, optional) - Page number for pagination.
-    *   `size` (integer, optional) - Number of items per page for pagination.
-    *   `search` (string, optional) - Search query for filtering results.
-
-    Response:
-
-    ```
-    {
-      "books": [
-        {
-          "id": 1,
-          "title": "Book Title",
-          "author": "Author Name",
-          "isbn": "1234567890",
-          "publishedAt": "2023-01-01",
-          "copies": 10,
-          "checkedOutCount": 2,
-          "quantityLeft": 8,
-          "timesCheckedOutAndReturned": 1
-        }
-      ],
-      "totalPages": 1,
-      "totalItems": 1
-    }
-    ```
-
-*   **Get Returned Books:**
-
-    ```
-    GET /api/reports/books/returned
-    ```
-
-    Parameters:
-
-    *   `paginate` (boolean, optional) - If true, returns paginated results.
-    *   `page` (integer, optional) - Page number for pagination.
-    *   `size` (integer, optional) - Number of items per page for pagination.
-    *   `search` (string, optional) - Search query for filtering results.
-
-    Response:
-
-    ```
-    {
-      "books": [
-        {
-          "id": 1,
-          "title": "Book Title",
-          "author": "Author Name",
-          "isbn": "1234567890",
-          "publishedAt": "2023-01-01",
-          "copies": 10,
-          "checkedOutCount": 2,
-          "quantityLeft": 8,
-          "timesCheckedOutAndReturned": 1
-        }
-      ],
-      "totalPages": 1,
-      "totalItems": 1
-    }
-    ```
-
-## License
-
-This project is licensed under the MIT License. You are free to use, modify, and distribute this software, provided that you include the original license and give credit to the original author.
+---
 
 ## Author
 
-This project was created and is maintained by [Ibukun Bello](https://github.com/ibukunoreofe).
+**Akanksha Ramchandra Kesarkar**  
+B.E. Computer Science & Engineering | 2024  
+📧 akankshakesarkar5@gmail.com  
+🔗 [LinkedIn](https://linkedin.com/in/akanksha-kesarkar)
